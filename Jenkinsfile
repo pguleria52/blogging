@@ -1,45 +1,70 @@
 pipeline {
     agent any
     
-    tool{
+    tools{
         jdk 'jdk17'
         maven 'maven3'
+    }
+
+    environment{
+        SCANNER_HOME = tool 'sonar-scanner'
     }
 
     stages {
         stage('Git Checkout') {
             steps {
-                
+                git branch: 'main', credentialsId: 'git-cred', url: 'https://github.com/pguleria52/blogging.git'
             }
         }
         
-         stage('Hello') {
+         stage('Compile') {
             steps {
-                echo 'Hello World'
+                sh "mvn compile"
             }
         }
         
-         stage('Hello') {
+         stage('Test') {
             steps {
-                echo 'Hello World'
+                sh "mvn test"
             }
         }
         
-         stage('Hello') {
+         stage('Trivy FS Scan') {
             steps {
-                echo 'Hello World'
+                sh "trivy fs --format table -o fs.html ."
             }
         }
         
-         stage('Hello') {
+         stage('SonarQube Analysis') {
             steps {
-                echo 'Hello World'
+                withSonarQubeEnv('sonar-server') {
+                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=Blogginng -Dsonar.projectKey=Blogginng \
+                           -Dsonar.java.binaries=target'''
+                }
             }
         }
         
-         stage('Hello') {
+         stage('Build') {
             steps {
-                echo 'Hello World'
+                sh "mvn package"
+            }
+        }
+        
+         stage('Publish the artifact') {
+            steps {
+                withMaven(globalMavenSettingsConfig: 'maven-settings', jdk: 'jdk17', maven: 'maven3', mavenSettingsConfig: '', traceability: true) {
+                    sh "mvn deploy"
+                }
+            }
+        }
+
+         stage('Docker Build and Tag') {
+            steps {
+                script{
+              withDockerRegistry(credentialsId: 'docker-cred', toolName: 'docker') {
+                sh "docker build -t pguleria52/blogging-app:latest ."
+              }
+              }
             }
         }
         
